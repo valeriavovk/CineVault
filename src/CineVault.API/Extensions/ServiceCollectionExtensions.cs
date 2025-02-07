@@ -22,4 +22,9 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static bool IsLocal(this IWebHostEnvironment environment)
+    {
+        return environment.EnvironmentName == "Local";
+    }
 }
