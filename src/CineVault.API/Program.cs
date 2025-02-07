@@ -18,10 +18,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+if (app.Environment.IsLocal())
+{
+    app.UseDeveloperExceptionPage();
+}
+
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
 app.MapControllers();
+
+Console.WriteLine($"Launch Environment: {app.Environment.EnvironmentName}");
 
 await app.RunAsync();
