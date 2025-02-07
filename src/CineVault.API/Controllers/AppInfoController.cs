@@ -21,7 +21,7 @@ public class AppInfoController : ControllerBase
         return Ok(environment);
     }
 
-    [HttpGet]
+    [HttpGet("throw-exception")]
     public ActionResult ThrowException()
     {
         throw new NotImplementedException("This method should never be called");
