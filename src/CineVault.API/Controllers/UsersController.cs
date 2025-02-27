@@ -1,4 +1,5 @@
-﻿using CineVault.API.Controllers.Requests;
+﻿using Asp.Versioning;
+using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineVault.API.Controllers;
 
-[Route("api/[controller]/[action]")]
+[Route("api/v{v:apiVersion}/[controller]/[action]")]
+[ApiVersion(1)]
+[ApiVersion(2)]
 public class UsersController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
@@ -68,6 +71,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [MapToApiVersion(2)]
     public async Task<ActionResult> UpdateUser(int id, UserRequest request)
     {
         var user = await this.dbContext.Users.FindAsync(id);
@@ -87,6 +91,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [MapToApiVersion(2)]
     public async Task<ActionResult> DeleteUser(int id)
     {
         var user = await this.dbContext.Users.FindAsync(id);
