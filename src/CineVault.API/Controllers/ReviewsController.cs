@@ -1,4 +1,5 @@
-﻿using CineVault.API.Controllers.Requests;
+﻿using Asp.Versioning;
+using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineVault.API.Controllers;
 
-[Route("api/[controller]/[action]")]
+[Route("api/v{v:apiVersion}/[controller]/[action]")]
+[ApiVersion(1)]
+[ApiVersion(2)]
 public sealed class ReviewsController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
@@ -19,10 +22,11 @@ public sealed class ReviewsController : ControllerBase
     }
 
     [HttpGet]
+    [MapToApiVersion("1")]
     public async Task<ActionResult<List<ReviewResponse>>> GetReviews()
     {
         _logger.LogInformation("GetReviews method called");
-        var reviews = await this.dbContext.Reviews
+        var reviews = await dbContext.Reviews
             .Include(r => r.Movie)
             .Include(r => r.User)
             .Select(r => new ReviewResponse
@@ -38,21 +42,22 @@ public sealed class ReviewsController : ControllerBase
             })
             .ToListAsync();
         _logger.LogInformation("GetReviews executed successfully. Returned {Count} reviews", reviews.Count);
-        return base.Ok(reviews);
+        return Ok(reviews);
     }
 
     [HttpGet("{id}")]
+    [MapToApiVersion("1")]
     public async Task<ActionResult<ReviewResponse>> GetReviewById(int id)
     {
         _logger.LogInformation("GetReviewById method called with id {ReviewId}", id);
-        var review = await this.dbContext.Reviews
+        var review = await dbContext.Reviews
             .Include(r => r.Movie)
             .Include(r => r.User)
             .FirstOrDefaultAsync(r => r.Id == id);
         if (review is null)
         {
             _logger.LogError("Review with id {ReviewId} not found", id);
-            return base.NotFound();
+            return NotFound();
         }
         var response = new ReviewResponse
         {
@@ -66,10 +71,11 @@ public sealed class ReviewsController : ControllerBase
             CreatedAt = review.CreatedAt
         };
         _logger.LogInformation("GetReviewById executed successfully for review id {ReviewId}", id);
-        return base.Ok(response);
+        return Ok(response);
     }
 
     [HttpPost]
+    [MapToApiVersion("1")]
     public async Task<ActionResult> CreateReview(ReviewRequest request)
     {
         _logger.LogInformation("CreateReview method called for MovieId {MovieId} and UserId {UserId}", request.MovieId, request.UserId);
@@ -80,44 +86,210 @@ public sealed class ReviewsController : ControllerBase
             Rating = request.Rating,
             Comment = request.Comment
         };
-        this.dbContext.Reviews.Add(review);
-        await this.dbContext.SaveChangesAsync();
+        dbContext.Reviews.Add(review);
+        await dbContext.SaveChangesAsync();
         _logger.LogInformation("Review created successfully with Id {ReviewId} for MovieId {MovieId} and UserId {UserId}", review.Id, review.MovieId, review.UserId);
-        return base.Created();
+        return Created(string.Empty, null);
     }
 
     [HttpPut("{id}")]
+    [MapToApiVersion("1")]
     public async Task<ActionResult> UpdateReview(int id, ReviewRequest request)
     {
         _logger.LogInformation("UpdateReview method called for review id {ReviewId}", id);
-        var review = await this.dbContext.Reviews.FindAsync(id);
+        var review = await dbContext.Reviews.FindAsync(id);
         if (review is null)
         {
             _logger.LogError("Review with id {ReviewId} not found for update", id);
-            return base.NotFound();
+            return NotFound();
         }
         review.MovieId = request.MovieId;
         review.UserId = request.UserId;
         review.Rating = request.Rating;
         review.Comment = request.Comment;
-        await this.dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
         _logger.LogInformation("Review updated successfully with Id {ReviewId}", review.Id);
-        return base.Ok();
+        return Ok();
     }
 
     [HttpDelete("{id}")]
+    [MapToApiVersion("1")]
     public async Task<ActionResult> DeleteReview(int id)
     {
         _logger.LogInformation("DeleteReview method called for review id {ReviewId}", id);
-        var review = await this.dbContext.Reviews.FindAsync(id);
+        var review = await dbContext.Reviews.FindAsync(id);
         if (review is null)
         {
             _logger.LogError("Review with id {ReviewId} not found for deletion", id);
-            return base.NotFound();
+            return NotFound();
         }
-        this.dbContext.Reviews.Remove(review);
-        await this.dbContext.SaveChangesAsync();
+        dbContext.Reviews.Remove(review);
+        await dbContext.SaveChangesAsync();
         _logger.LogInformation("Review deleted successfully with Id {ReviewId}", review.Id);
-        return base.Ok();
+        return Ok();
+    }
+
+    [HttpOptions]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<List<ReviewResponse>>>> GetReviews(ApiRequest request)
+    {
+        var reviews = await dbContext.Reviews
+            .Include(r => r.Movie)
+            .Include(r => r.User)
+            .Select(r => new ReviewResponse
+            {
+                Id = r.Id,
+                MovieId = r.MovieId,
+                MovieTitle = r.Movie!.Title,
+                UserId = r.UserId,
+                Username = r.User!.Username,
+                Rating = r.Rating,
+                Comment = r.Comment,
+                CreatedAt = r.CreatedAt
+            })
+            .ToListAsync();
+        var response = new ApiResponse<List<ReviewResponse>>
+        {
+            StatusCode = 200,
+            Message = "OK",
+            Data = reviews
+        };
+        return Ok(response);
+    }
+
+    [HttpOptions("{id}")]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ReviewResponse>>> GetReviewById(int id, ApiRequest request)
+    {
+        var review = await dbContext.Reviews
+            .Include(r => r.Movie)
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (review is null)
+        {
+            return NotFound(new ApiResponse<ReviewResponse>
+            {
+                StatusCode = 404,
+                Message = "Not Found",
+                Data = default!
+            });
+        }
+        var reviewResponse = new ReviewResponse
+        {
+            Id = review.Id,
+            MovieId = review.MovieId,
+            MovieTitle = review.Movie!.Title,
+            UserId = review.UserId,
+            Username = review.User!.Username,
+            Rating = review.Rating,
+            Comment = review.Comment,
+            CreatedAt = review.CreatedAt
+        };
+        var response = new ApiResponse<ReviewResponse>
+        {
+            StatusCode = 200,
+            Message = "OK",
+            Data = reviewResponse
+        };
+        return Ok(response);
+    }
+
+    [HttpPost]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ReviewResponse>>> CreateReview(ApiRequest<ReviewRequest> request)
+    {
+        var reviewRequest = request.Data;
+        var review = new Review
+        {
+            MovieId = reviewRequest.MovieId,
+            UserId = reviewRequest.UserId,
+            Rating = reviewRequest.Rating,
+            Comment = reviewRequest.Comment
+        };
+        dbContext.Reviews.Add(review);
+        await dbContext.SaveChangesAsync();
+        var reviewResponse = new ReviewResponse
+        {
+            Id = review.Id,
+            MovieId = review.MovieId,
+            MovieTitle = review.Movie?.Title,
+            UserId = review.UserId,
+            Username = review.User?.Username,
+            Rating = review.Rating,
+            Comment = review.Comment,
+            CreatedAt = review.CreatedAt
+        };
+        var response = new ApiResponse<ReviewResponse>
+        {
+            StatusCode = 201,
+            Message = "Created",
+            Data = reviewResponse
+        };
+        return CreatedAtAction(nameof(GetReviewById), new { id = review.Id }, response);
+    }
+
+    [HttpPut("{id}")]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ReviewResponse>>> UpdateReview(int id, ApiRequest<ReviewRequest> request)
+    {
+        var reviewRequest = request.Data;
+        var review = await dbContext.Reviews.FindAsync(id);
+        if (review is null)
+        {
+            return NotFound(new ApiResponse<ReviewResponse>
+            {
+                StatusCode = 404,
+                Message = "Not Found",
+                Data = default!
+            });
+        }
+        review.MovieId = reviewRequest.MovieId;
+        review.UserId = reviewRequest.UserId;
+        review.Rating = reviewRequest.Rating;
+        review.Comment = reviewRequest.Comment;
+        await dbContext.SaveChangesAsync();
+        var reviewResponse = new ReviewResponse
+        {
+            Id = review.Id,
+            MovieId = review.MovieId,
+            MovieTitle = review.Movie?.Title,
+            UserId = review.UserId,
+            Username = review.User?.Username,
+            Rating = review.Rating,
+            Comment = review.Comment,
+            CreatedAt = review.CreatedAt
+        };
+        var response = new ApiResponse<ReviewResponse>
+        {
+            StatusCode = 200,
+            Message = "OK",
+            Data = reviewResponse
+        };
+        return Ok(response);
+    }
+
+    [HttpDelete("{id}")]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteReview(int id, ApiRequest request)
+    {
+        var review = await dbContext.Reviews.FindAsync(id);
+        if (review is null)
+        {
+            return NotFound(new ApiResponse<string>
+            {
+                StatusCode = 404,
+                Message = "Not Found",
+                Data = "Review not found"
+            });
+        }
+        dbContext.Reviews.Remove(review);
+        await dbContext.SaveChangesAsync();
+        var response = new ApiResponse<string>
+        {
+            StatusCode = 200,
+            Message = "OK",
+            Data = "Deleted"
+        };
+        return Ok(response);
     }
 }
