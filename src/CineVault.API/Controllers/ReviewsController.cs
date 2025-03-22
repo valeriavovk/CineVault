@@ -2,23 +2,26 @@
 using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
+using MapsterMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CineVault.API.Controllers;
 
 [Route("api/v{v:apiVersion}/[controller]/[action]")]
-[ApiVersion(1)]
-[ApiVersion(2)]
+[ApiVersion("1")]
+[ApiVersion("2")]
 public sealed class ReviewsController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
     private readonly ILogger<ReviewsController> _logger;
+    private readonly IMapper _mapper;
 
-    public ReviewsController(CineVaultDbContext dbContext, ILogger<ReviewsController> logger)
+    public ReviewsController(CineVaultDbContext dbContext, ILogger<ReviewsController> logger, IMapper mapper)
     {
         this.dbContext = dbContext;
         _logger = logger;
+        _mapper = mapper;
     }
 
     [HttpGet]
@@ -136,23 +139,13 @@ public sealed class ReviewsController : ControllerBase
         var reviews = await dbContext.Reviews
             .Include(r => r.Movie)
             .Include(r => r.User)
-            .Select(r => new ReviewResponse
-            {
-                Id = r.Id,
-                MovieId = r.MovieId,
-                MovieTitle = r.Movie!.Title,
-                UserId = r.UserId,
-                Username = r.User!.Username,
-                Rating = r.Rating,
-                Comment = r.Comment,
-                CreatedAt = r.CreatedAt
-            })
             .ToListAsync();
+        var reviewResponses = _mapper.Map<List<ReviewResponse>>(reviews);
         var response = new ApiResponse<List<ReviewResponse>>
         {
             StatusCode = 200,
             Message = "OK",
-            Data = reviews
+            Data = reviewResponses
         };
         return Ok(response);
     }
@@ -174,17 +167,7 @@ public sealed class ReviewsController : ControllerBase
                 Data = default!
             });
         }
-        var reviewResponse = new ReviewResponse
-        {
-            Id = review.Id,
-            MovieId = review.MovieId,
-            MovieTitle = review.Movie!.Title,
-            UserId = review.UserId,
-            Username = review.User!.Username,
-            Rating = review.Rating,
-            Comment = review.Comment,
-            CreatedAt = review.CreatedAt
-        };
+        var reviewResponse = _mapper.Map<ReviewResponse>(review);
         var response = new ApiResponse<ReviewResponse>
         {
             StatusCode = 200,
@@ -199,26 +182,10 @@ public sealed class ReviewsController : ControllerBase
     public async Task<ActionResult<ApiResponse<ReviewResponse>>> CreateReview(ApiRequest<ReviewRequest> request)
     {
         var reviewRequest = request.Data;
-        var review = new Review
-        {
-            MovieId = reviewRequest.MovieId,
-            UserId = reviewRequest.UserId,
-            Rating = reviewRequest.Rating,
-            Comment = reviewRequest.Comment
-        };
+        var review = _mapper.Map<Review>(reviewRequest);
         dbContext.Reviews.Add(review);
         await dbContext.SaveChangesAsync();
-        var reviewResponse = new ReviewResponse
-        {
-            Id = review.Id,
-            MovieId = review.MovieId,
-            MovieTitle = review.Movie?.Title,
-            UserId = review.UserId,
-            Username = review.User?.Username,
-            Rating = review.Rating,
-            Comment = review.Comment,
-            CreatedAt = review.CreatedAt
-        };
+        var reviewResponse = _mapper.Map<ReviewResponse>(review);
         var response = new ApiResponse<ReviewResponse>
         {
             StatusCode = 201,
@@ -243,22 +210,9 @@ public sealed class ReviewsController : ControllerBase
                 Data = default!
             });
         }
-        review.MovieId = reviewRequest.MovieId;
-        review.UserId = reviewRequest.UserId;
-        review.Rating = reviewRequest.Rating;
-        review.Comment = reviewRequest.Comment;
+        _mapper.Map(reviewRequest, review);
         await dbContext.SaveChangesAsync();
-        var reviewResponse = new ReviewResponse
-        {
-            Id = review.Id,
-            MovieId = review.MovieId,
-            MovieTitle = review.Movie?.Title,
-            UserId = review.UserId,
-            Username = review.User?.Username,
-            Rating = review.Rating,
-            Comment = review.Comment,
-            CreatedAt = review.CreatedAt
-        };
+        var reviewResponse = _mapper.Map<ReviewResponse>(review);
         var response = new ApiResponse<ReviewResponse>
         {
             StatusCode = 200,

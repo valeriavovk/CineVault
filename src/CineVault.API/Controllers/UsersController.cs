@@ -2,23 +2,26 @@
 using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
+using MapsterMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CineVault.API.Controllers;
 
 [Route("api/v{v:apiVersion}/[controller]/[action]")]
-[ApiVersion(1)]
-[ApiVersion(2)]
+[ApiVersion("1")]
+[ApiVersion("2")]
 public class UsersController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
     private readonly ILogger<UsersController> _logger;
+    private readonly IMapper _mapper;
 
-    public UsersController(CineVaultDbContext dbContext, ILogger<UsersController> logger)
+    public UsersController(CineVaultDbContext dbContext, ILogger<UsersController> logger, IMapper mapper)
     {
         this.dbContext = dbContext;
         _logger = logger;
+        _mapper = mapper;
     }
 
     [HttpGet]
@@ -116,19 +119,13 @@ public class UsersController : ControllerBase
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<List<UserResponse>>>> GetUsers(ApiRequest request)
     {
-        var users = await dbContext.Users
-            .Select(u => new UserResponse
-            {
-                Id = u.Id,
-                Username = u.Username,
-                Email = u.Email
-            })
-            .ToListAsync();
+        var users = await dbContext.Users.ToListAsync();
+        var userResponses = _mapper.Map<List<UserResponse>>(users);
         var response = new ApiResponse<List<UserResponse>>
         {
             StatusCode = 200,
             Message = "OK",
-            Data = users
+            Data = userResponses
         };
         return Ok(response);
     }
@@ -147,12 +144,7 @@ public class UsersController : ControllerBase
                 Data = default!
             });
         }
-        var userResponse = new UserResponse
-        {
-            Id = user.Id,
-            Username = user.Username,
-            Email = user.Email
-        };
+        var userResponse = _mapper.Map<UserResponse>(user);
         var response = new ApiResponse<UserResponse>
         {
             StatusCode = 200,
@@ -167,20 +159,10 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<ApiResponse<UserResponse>>> CreateUser(ApiRequest<UserRequest> request)
     {
         var userRequest = request.Data;
-        var user = new User
-        {
-            Username = userRequest.Username,
-            Email = userRequest.Email,
-            Password = userRequest.Password
-        };
+        var user = _mapper.Map<User>(userRequest);
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
-        var userResponse = new UserResponse
-        {
-            Id = user.Id,
-            Username = user.Username,
-            Email = user.Email
-        };
+        var userResponse = _mapper.Map<UserResponse>(user);
         var response = new ApiResponse<UserResponse>
         {
             StatusCode = 201,
@@ -205,16 +187,9 @@ public class UsersController : ControllerBase
                 Data = default!
             });
         }
-        user.Username = userRequest.Username;
-        user.Email = userRequest.Email;
-        user.Password = userRequest.Password;
+        _mapper.Map(userRequest, user);
         await dbContext.SaveChangesAsync();
-        var userResponse = new UserResponse
-        {
-            Id = user.Id,
-            Username = user.Username,
-            Email = user.Email
-        };
+        var userResponse = _mapper.Map<UserResponse>(user);
         var response = new ApiResponse<UserResponse>
         {
             StatusCode = 200,
