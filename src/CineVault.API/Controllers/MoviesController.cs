@@ -2,23 +2,26 @@
 using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
+using MapsterMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace CineVault.API.Controllers;
 
 [Route("api/v{v:apiVersion}/[controller]/[action]")]
-[ApiVersion(1)]
-[ApiVersion(2)]
+[ApiVersion("1")]
+[ApiVersion("2")]
 public sealed class MoviesController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
     private readonly ILogger<MoviesController> _logger;
+    private readonly IMapper _mapper;
 
-    public MoviesController(CineVaultDbContext dbContext, ILogger<MoviesController> logger)
+    public MoviesController(CineVaultDbContext dbContext, ILogger<MoviesController> logger, IMapper mapper)
     {
         this.dbContext = dbContext;
         _logger = logger;
+        _mapper = mapper;
     }
 
     [HttpGet]
@@ -135,23 +138,13 @@ public sealed class MoviesController : ControllerBase
     {
         var movies = await dbContext.Movies
             .Include(m => m.Reviews)
-            .Select(m => new MovieResponse
-            {
-                Id = m.Id,
-                Title = m.Title,
-                Description = m.Description,
-                ReleaseDate = m.ReleaseDate,
-                Genre = m.Genre,
-                Director = m.Director,
-                AverageRating = m.Reviews.Count != 0 ? m.Reviews.Average(r => r.Rating) : 0,
-                ReviewCount = m.Reviews.Count
-            })
             .ToListAsync();
+        var movieResponses = _mapper.Map<List<MovieResponse>>(movies);
         var response = new ApiResponse<List<MovieResponse>>
         {
             StatusCode = 200,
             Message = "OK",
-            Data = movies
+            Data = movieResponses
         };
         return Ok(response);
     }
@@ -172,17 +165,7 @@ public sealed class MoviesController : ControllerBase
                 Data = default!
             });
         }
-        var movieResponse = new MovieResponse
-        {
-            Id = movie.Id,
-            Title = movie.Title,
-            Description = movie.Description,
-            ReleaseDate = movie.ReleaseDate,
-            Genre = movie.Genre,
-            Director = movie.Director,
-            AverageRating = movie.Reviews.Count != 0 ? movie.Reviews.Average(r => r.Rating) : 0,
-            ReviewCount = movie.Reviews.Count
-        };
+        var movieResponse = _mapper.Map<MovieResponse>(movie);
         var response = new ApiResponse<MovieResponse>
         {
             StatusCode = 200,
@@ -197,27 +180,10 @@ public sealed class MoviesController : ControllerBase
     public async Task<ActionResult<ApiResponse<MovieResponse>>> CreateMovie(ApiRequest<MovieRequest> request)
     {
         var movieRequest = request.Data;
-        var movie = new Movie
-        {
-            Title = movieRequest.Title,
-            Description = movieRequest.Description,
-            ReleaseDate = movieRequest.ReleaseDate,
-            Genre = movieRequest.Genre,
-            Director = movieRequest.Director
-        };
+        var movie = _mapper.Map<Movie>(movieRequest);
         await dbContext.Movies.AddAsync(movie);
         await dbContext.SaveChangesAsync();
-        var movieResponse = new MovieResponse
-        {
-            Id = movie.Id,
-            Title = movie.Title,
-            Description = movie.Description,
-            ReleaseDate = movie.ReleaseDate,
-            Genre = movie.Genre,
-            Director = movie.Director,
-            AverageRating = 0,
-            ReviewCount = 0
-        };
+        var movieResponse = _mapper.Map<MovieResponse>(movie);
         var response = new ApiResponse<MovieResponse>
         {
             StatusCode = 201,
@@ -242,23 +208,9 @@ public sealed class MoviesController : ControllerBase
                 Data = default!
             });
         }
-        movie.Title = movieRequest.Title;
-        movie.Description = movieRequest.Description;
-        movie.ReleaseDate = movieRequest.ReleaseDate;
-        movie.Genre = movieRequest.Genre;
-        movie.Director = movieRequest.Director;
+        _mapper.Map(movieRequest, movie);
         await dbContext.SaveChangesAsync();
-        var movieResponse = new MovieResponse
-        {
-            Id = movie.Id,
-            Title = movie.Title,
-            Description = movie.Description,
-            ReleaseDate = movie.ReleaseDate,
-            Genre = movie.Genre,
-            Director = movie.Director,
-            AverageRating = movie.Reviews.Count != 0 ? movie.Reviews.Average(r => r.Rating) : 0,
-            ReviewCount = movie.Reviews.Count
-        };
+        var movieResponse = _mapper.Map<MovieResponse>(movie);
         var response = new ApiResponse<MovieResponse>
         {
             StatusCode = 200,

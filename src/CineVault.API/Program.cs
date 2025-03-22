@@ -1,5 +1,7 @@
+using System.Reflection;
 using Asp.Versioning;
 using CineVault.API.Extensions;
+using Mapster;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -13,6 +15,9 @@ builder.Services.AddCineVaultDbContext(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddMapster();
+TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());
 
 builder.Services.AddSwaggerGen(options =>
 {
