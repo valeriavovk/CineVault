@@ -15,6 +15,8 @@ public class EntitiesProfiles : IRegister
 
         config.NewConfig<UserRequest, User>();
 
+        config.NewConfig<LikeRequest, Like>();
+
         config.NewConfig<Movie, MovieResponse>()
             .Map(m => m.AverageRating,
                 m => m.Reviews.Count != 0 ? m.Reviews.Average(r => r.Rating) : 0)

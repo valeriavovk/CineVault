@@ -10,4 +10,5 @@ public sealed class Review
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Movie? Movie { get; set; }
     public User? User { get; set; }
+    public ICollection<Like> Likes { get; set; } = [];
 }
