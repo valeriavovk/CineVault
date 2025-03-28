@@ -14,22 +14,23 @@ namespace CineVault.API.Controllers;
 public sealed class MoviesController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
-    private readonly ILogger<MoviesController> _logger;
-    private readonly IMapper _mapper;
+    private readonly ILogger<MoviesController> logger;
+    private readonly IMapper mapper;
 
-    public MoviesController(CineVaultDbContext dbContext, ILogger<MoviesController> logger, IMapper mapper)
+    public MoviesController(CineVaultDbContext dbContext, ILogger<MoviesController> logger,
+        IMapper mapper)
     {
         this.dbContext = dbContext;
-        _logger = logger;
-        _mapper = mapper;
+        this.logger = logger;
+        this.mapper = mapper;
     }
 
     [HttpGet]
     [MapToApiVersion("1")]
     public async Task<ActionResult<List<MovieResponse>>> GetMovies()
     {
-        _logger.LogInformation("GetMovies method called");
-        var movies = await dbContext.Movies
+        this.logger.LogInformation("GetMovies method called");
+        var movies = await this.dbContext.Movies
             .Include(m => m.Reviews)
             .Select(m => new MovieResponse
             {
@@ -43,23 +44,25 @@ public sealed class MoviesController : ControllerBase
                 ReviewCount = m.Reviews.Count
             })
             .ToListAsync();
-        _logger.LogInformation("GetMovies executed successfully with {MovieCount} movies", movies.Count);
-        return Ok(movies);
+        this.logger.LogInformation("GetMovies executed successfully with {MovieCount} movies",
+            movies.Count);
+        return this.Ok(movies);
     }
 
     [HttpGet("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult<MovieResponse>> GetMovieById(int id)
     {
-        _logger.LogInformation("GetMovieById method called with Id {MovieId}", id);
-        var movie = await dbContext.Movies
+        this.logger.LogInformation("GetMovieById method called with Id {MovieId}", id);
+        var movie = await this.dbContext.Movies
             .Include(m => m.Reviews)
             .FirstOrDefaultAsync(m => m.Id == id);
         if (movie is null)
         {
-            _logger.LogError("Movie with Id {MovieId} not found", id);
-            return NotFound();
+            this.logger.LogError("Movie with Id {MovieId} not found", id);
+            return this.NotFound();
         }
+
         var response = new MovieResponse
         {
             Id = movie.Id,
@@ -71,15 +74,18 @@ public sealed class MoviesController : ControllerBase
             AverageRating = movie.Reviews.Count != 0 ? movie.Reviews.Average(r => r.Rating) : 0,
             ReviewCount = movie.Reviews.Count
         };
-        _logger.LogInformation("GetMovieById executed successfully for MovieId {MovieId} with {ReviewCount} reviews", movie.Id, movie.Reviews.Count);
-        return Ok(response);
+        this.logger.LogInformation(
+            "GetMovieById executed successfully for MovieId {MovieId} with {ReviewCount} reviews",
+            movie.Id, movie.Reviews.Count);
+        return this.Ok(response);
     }
 
     [HttpPost]
     [MapToApiVersion("1")]
     public async Task<ActionResult> CreateMovie(MovieRequest request)
     {
-        _logger.LogInformation("CreateMovie method called with Title {MovieTitle}", request.Title);
+        this.logger.LogInformation("CreateMovie method called with Title {MovieTitle}",
+            request.Title);
         var movie = new Movie
         {
             Title = request.Title,
@@ -88,160 +94,313 @@ public sealed class MoviesController : ControllerBase
             Genre = request.Genre,
             Director = request.Director
         };
-        await dbContext.Movies.AddAsync(movie);
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("Movie created successfully with Id {MovieId} and Title {MovieTitle}", movie.Id, movie.Title);
-        return Created(string.Empty, null);
+        await this.dbContext.Movies.AddAsync(movie);
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation(
+            "Movie created successfully with Id {MovieId} and Title {MovieTitle}", movie.Id,
+            movie.Title);
+        return this.Created(string.Empty, null);
     }
 
     [HttpPut("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult> UpdateMovie(int id, MovieRequest request)
     {
-        _logger.LogInformation("UpdateMovie method called with Id {MovieId}", id);
-        var movie = await dbContext.Movies.FindAsync(id);
+        this.logger.LogInformation("UpdateMovie method called with Id {MovieId}", id);
+        var movie = await this.dbContext.Movies.FindAsync(id);
         if (movie is null)
         {
-            _logger.LogError("Movie with Id {MovieId} not found for update", id);
-            return NotFound();
+            this.logger.LogError("Movie with Id {MovieId} not found for update", id);
+            return this.NotFound();
         }
+
         movie.Title = request.Title;
         movie.Description = request.Description;
         movie.ReleaseDate = request.ReleaseDate;
         movie.Genre = request.Genre;
         movie.Director = request.Director;
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("Movie updated successfully with Id {MovieId} and Title {MovieTitle}", movie.Id, movie.Title);
-        return Ok();
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation(
+            "Movie updated successfully with Id {MovieId} and Title {MovieTitle}", movie.Id,
+            movie.Title);
+        return this.Ok();
     }
 
     [HttpDelete("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult> DeleteMovie(int id)
     {
-        _logger.LogInformation("DeleteMovie method called with Id {MovieId}", id);
-        var movie = await dbContext.Movies.FindAsync(id);
+        this.logger.LogInformation("DeleteMovie method called with Id {MovieId}", id);
+        var movie = await this.dbContext.Movies.FindAsync(id);
         if (movie is null)
         {
-            _logger.LogError("Movie with Id {MovieId} not found for deletion", id);
-            return NotFound();
+            this.logger.LogError("Movie with Id {MovieId} not found for deletion", id);
+            return this.NotFound();
         }
-        dbContext.Movies.Remove(movie);
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("Movie deleted successfully with Id {MovieId}", movie.Id);
-        return Ok();
+
+        this.dbContext.Movies.Remove(movie);
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation("Movie deleted successfully with Id {MovieId}", movie.Id);
+        return this.Ok();
     }
 
     [HttpOptions]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<List<MovieResponse>>>> GetMovies(ApiRequest request)
+    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> GetMovies(ApiRequest request)
     {
-        var movies = await dbContext.Movies
+        this.logger.LogInformation("GetMovies (v2) method called");
+
+        var movies = await this.dbContext.Movies
             .Include(m => m.Reviews)
             .ToListAsync();
-        var movieResponses = _mapper.Map<List<MovieResponse>>(movies);
-        var response = new ApiResponse<List<MovieResponse>>
+        this.logger.LogInformation("Retrieved {MovieCount} movies from database", movies.Count);
+
+        var movieResponses = this.mapper.Map<ICollection<MovieResponse>>(movies);
+
+        this.logger.LogInformation("GetMovies (v2) executed successfully");
+        return this.Ok(new ApiResponse<ICollection<MovieResponse>>
         {
             StatusCode = 200,
-            Message = "OK",
+            Message = "Movies are received",
             Data = movieResponses
-        };
-        return Ok(response);
+        });
+    }
+
+    [HttpOptions]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> SearchMovies(ApiRequest<SearchMoviesRequest> request)
+    {
+        this.logger.LogInformation("SearchMovies (v2) method called with criteria: {@Criteria}", request.Data);
+
+        var criteria = request.Data;
+        var query = this.dbContext.Movies
+            .Include(m => m.Reviews)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(criteria.Title))
+        {
+            query = query.Where(m => m.Title.Contains(criteria.Title));
+            this.logger.LogInformation("Filtering movies by Title containing: {Title}", criteria.Title);
+        }
+        if (!string.IsNullOrWhiteSpace(criteria.Genre))
+        {
+            query = query.Where(m => m.Genre != null && m.Genre.Equals(criteria.Genre, StringComparison.OrdinalIgnoreCase));
+            this.logger.LogInformation("Filtering movies by Genre: {Genre}", criteria.Genre);
+        }
+        if (!string.IsNullOrWhiteSpace(criteria.Director))
+        {
+            query = query.Where(m => m.Director != null && m.Director.Contains(criteria.Director));
+            this.logger.LogInformation("Filtering movies by Director containing: {Director}", criteria.Director);
+        }
+        if (criteria.ReleaseDate.HasValue)
+        {
+            query = query.Where(m => m.ReleaseDate.HasValue && m.ReleaseDate.Value == criteria.ReleaseDate.Value);
+            this.logger.LogInformation("Filtering movies by ReleaseDate: {ReleaseDate}", criteria.ReleaseDate.Value);
+        }
+        if (criteria.AvgRating.HasValue)
+        {
+            double minRating = criteria.AvgRating.Value;
+            query = query.Where(m => m.Reviews.Any() && m.Reviews.Average(r => r.Rating) >= minRating);
+            this.logger.LogInformation("Filtering movies with average rating >= {MinRating}", minRating);
+        }
+
+        var movies = await query.ToListAsync();
+        this.logger.LogInformation("SearchMovies (v2) executed successfully. Found {MovieCount} movies", movies.Count);
+
+        var movieResponses = this.mapper.Map<ICollection<MovieResponse>>(movies);
+        return this.Ok(new ApiResponse<ICollection<MovieResponse>>
+        {
+            StatusCode = 200,
+            Message = "Movies are received",
+            Data = movieResponses
+        });
     }
 
     [HttpOptions("{id}")]
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<MovieResponse>>> GetMovieById(int id, ApiRequest request)
     {
-        var movie = await dbContext.Movies
+        this.logger.LogInformation("GetMovieById (v2) method called with Id {MovieId}", id);
+
+        var movie = await this.dbContext.Movies
             .Include(m => m.Reviews)
             .FirstOrDefaultAsync(m => m.Id == id);
+
         if (movie == null)
         {
-            return NotFound(new ApiResponse<MovieResponse>
+            this.logger.LogWarning("GetMovieById (v2): Movie with Id {MovieId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = default!
+                Message = "Movie is not found"
             });
         }
-        var movieResponse = _mapper.Map<MovieResponse>(movie);
-        var response = new ApiResponse<MovieResponse>
+
+        var movieResponse = this.mapper.Map<MovieResponse>(movie);
+        this.logger.LogInformation("GetMovieById (v2) executed successfully for MovieId {MovieId}", id);
+        return this.Ok(new ApiResponse<MovieResponse>
         {
             StatusCode = 200,
             Message = "OK",
             Data = movieResponse
-        };
-        return Ok(response);
+        });
     }
 
     [HttpPost]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<MovieResponse>>> CreateMovie(ApiRequest<MovieRequest> request)
+    public async Task<ActionResult<ApiResponse<int>>> CreateMovie(ApiRequest<MovieRequest> request)
     {
-        var movieRequest = request.Data;
-        var movie = _mapper.Map<Movie>(movieRequest);
-        await dbContext.Movies.AddAsync(movie);
-        await dbContext.SaveChangesAsync();
-        var movieResponse = _mapper.Map<MovieResponse>(movie);
-        var response = new ApiResponse<MovieResponse>
+        this.logger.LogInformation("CreateMovie (v2) method called with Title {MovieTitle}", request.Data.Title);
+
+        var movie = this.mapper.Map<Movie>(request.Data);
+        await this.dbContext.Movies.AddAsync(movie);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("Movie created successfully in CreateMovie (v2) with Id {MovieId}", movie.Id);
+        return this.Ok(new ApiResponse<int>
         {
-            StatusCode = 201,
-            Message = "Created",
-            Data = movieResponse
-        };
-        return CreatedAtAction(nameof(GetMovieById), new { id = movie.Id }, response);
+            StatusCode = 200,
+            Message = "Movie is created",
+            Data = movie.Id
+        });
+    }
+
+    [HttpPost]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> CreateMovies(ApiRequest<ICollection<MovieRequest>> request)
+    {
+        this.logger.LogInformation("CreateMovies (v2) method called with {MovieCount} movies", request.Data.Count);
+
+        var movies = this.mapper.Map<ICollection<Movie>>(request.Data);
+        await this.dbContext.Movies.AddRangeAsync(movies);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("CreateMovies (v2) executed successfully. Created movies with IDs: {MovieIds}", string.Join(", ", movies.Select(m => m.Id)));
+        return this.Ok(new ApiResponse<ICollection<int>>
+        {
+            StatusCode = 200,
+            Message = "Movies are created",
+            Data = movies.Select(a => a.Id).ToList()
+        });
     }
 
     [HttpPut("{id}")]
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<MovieResponse>>> UpdateMovie(int id, ApiRequest<MovieRequest> request)
     {
-        var movieRequest = request.Data;
-        var movie = await dbContext.Movies.FindAsync(id);
+        this.logger.LogInformation("UpdateMovie (v2) method called for MovieId {MovieId}", id);
+
+        var movie = await this.dbContext.Movies.FindAsync(id);
         if (movie == null)
         {
-            return NotFound(new ApiResponse<MovieResponse>
+            this.logger.LogWarning("UpdateMovie (v2): Movie with Id {MovieId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = default!
+                Message = "Movie is not found"
             });
         }
-        _mapper.Map(movieRequest, movie);
-        await dbContext.SaveChangesAsync();
-        var movieResponse = _mapper.Map<MovieResponse>(movie);
-        var response = new ApiResponse<MovieResponse>
+
+        this.mapper.Map(request.Data, movie);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("UpdateMovie (v2) executed successfully for MovieId {MovieId}", id);
+        var movieResponse = this.mapper.Map<MovieResponse>(movie);
+        return this.Ok(new ApiResponse<MovieResponse>
         {
             StatusCode = 200,
-            Message = "OK",
+            Message = "Movie is updated",
             Data = movieResponse
-        };
-        return Ok(response);
+        });
     }
 
     [HttpDelete("{id}")]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<string>>> DeleteMovie(int id, ApiRequest request)
+    public async Task<ActionResult<ApiResponse>> DeleteMovie(int id, ApiRequest request)
     {
-        var movie = await dbContext.Movies.FindAsync(id);
+        this.logger.LogInformation("DeleteMovie (v2) method called with MovieId {MovieId}", id);
+
+        var movie = await this.dbContext.Movies.FindAsync(id);
         if (movie == null)
         {
-            return NotFound(new ApiResponse<string>
+            this.logger.LogWarning("DeleteMovie (v2): Movie with Id {MovieId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = "Movie not found"
+                Message = "Movie is not found"
             });
         }
-        dbContext.Movies.Remove(movie);
-        await dbContext.SaveChangesAsync();
-        var response = new ApiResponse<string>
+
+        this.dbContext.Movies.Remove(movie);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("DeleteMovie (v2) executed successfully for MovieId {MovieId}", id);
+        return this.Ok(new ApiResponse
         {
             StatusCode = 200,
-            Message = "OK",
-            Data = "Deleted"
-        };
-        return Ok(response);
+            Message = "Movie is deleted"
+        });
+    }
+
+    [HttpDelete]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteMovies(ApiRequest<ICollection<int>> request)
+    {
+        var movieIdsToDelete = request.Data.Distinct().ToList();
+        this.logger.LogInformation("DeleteMovies (v2) method called with MovieIds: {MovieIds}", string.Join(", ", movieIdsToDelete));
+
+        var results = new List<string>();
+        var moviesFromDb = await this.dbContext.Movies
+            .Include(m => m.Reviews)
+            .Where(m => movieIdsToDelete.Contains(m.Id))
+            .ToListAsync();
+        var movsToRemove = new List<Movie>();
+        var foundIds = new HashSet<int>();
+
+        foreach (var movie in moviesFromDb)
+        {
+            foundIds.Add(movie.Id);
+            if (movie.Reviews.Count != 0)
+            {
+                string skipMessage = $"Movie with ID {movie.Id} ('{movie.Title}') skipped: Has associated reviews";
+                this.logger.LogWarning("DeleteMovies (v2): {SkipMessage}", skipMessage);
+                results.Add(skipMessage);
+            }
+            else
+            {
+                movsToRemove.Add(movie);
+            }
+        }
+
+        foreach (int id in movieIdsToDelete)
+        {
+            if (foundIds.Contains(id))
+            {
+                continue;
+            }
+            string notFoundMessage = $"Movie with ID {id} not found";
+            this.logger.LogWarning("DeleteMovies (v2): {NotFoundMessage}", notFoundMessage);
+            results.Add(notFoundMessage);
+        }
+
+        if (movsToRemove.Count != 0)
+        {
+            this.dbContext.Movies.RemoveRange(movsToRemove);
+            await this.dbContext.SaveChangesAsync();
+            foreach (var movie in movsToRemove)
+            {
+                string deletedMessage = $"Movie with ID {movie.Id} deleted successfully.";
+                this.logger.LogInformation("DeleteMovies (v2): {DeletedMessage}", deletedMessage);
+                results.Add(deletedMessage);
+            }
+        }
+
+        this.logger.LogInformation("DeleteMovies (v2) executed with {DeletedCount} movies deleted", movsToRemove.Count);
+        return this.Ok(new ApiResponse<ICollection<string>>
+        {
+            StatusCode = 200,
+            Message = $"Movies are deleted. Check data. Actually deleted: {movsToRemove.Count}.",
+            Data = results
+        });
     }
 }

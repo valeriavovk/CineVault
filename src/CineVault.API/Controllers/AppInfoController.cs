@@ -1,24 +1,25 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
 namespace CineVault.API.Controllers;
+
 [Route("api")]
 [ApiController]
 public class AppInfoController : ControllerBase
 {
-    private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<AppInfoController> _logger;
+    private readonly IWebHostEnvironment environment;
+    private readonly ILogger<AppInfoController> logger;
 
     public AppInfoController(IWebHostEnvironment environment, ILogger<AppInfoController> logger)
     {
-        _environment = environment;
-        _logger = logger;
+        this.environment = environment;
+        this.logger = logger;
     }
 
     [HttpGet("environment")]
     public ActionResult<string> GetEnvironment()
     {
-        var environment = new { EnvironmentName = _environment.EnvironmentName };
-        return Ok(environment);
+        var environment = new { this.environment.EnvironmentName };
+        return this.Ok(environment);
     }
 
     [HttpGet("throw-exception")]
@@ -30,13 +31,13 @@ public class AppInfoController : ControllerBase
     [HttpGet("log-test")]
     public ActionResult LogTest()
     {
-        _logger.LogTrace("This is a Trace level message");
-        _logger.LogDebug("This is a Debug level message");
-        _logger.LogInformation("This is an Information level message");
-        _logger.LogWarning("This is a Warning level message");
-        _logger.LogError("This is an Error level message");
-        _logger.LogCritical("This is a Critical level message");
+        this.logger.LogTrace("This is a Trace level message");
+        this.logger.LogDebug("This is a Debug level message");
+        this.logger.LogInformation("This is an Information level message");
+        this.logger.LogWarning("This is a Warning level message");
+        this.logger.LogError("This is an Error level message");
+        this.logger.LogCritical("This is a Critical level message");
 
-        return Ok("Log test completed.");
+        return this.Ok("Log test completed.");
     }
 }

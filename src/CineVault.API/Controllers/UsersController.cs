@@ -1,4 +1,5 @@
-﻿using Asp.Versioning;
+﻿using System.Linq.Expressions;
+using Asp.Versioning;
 using CineVault.API.Controllers.Requests;
 using CineVault.API.Controllers.Responses;
 using CineVault.API.Entities;
@@ -14,213 +15,292 @@ namespace CineVault.API.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly CineVaultDbContext dbContext;
-    private readonly ILogger<UsersController> _logger;
-    private readonly IMapper _mapper;
+    private readonly ILogger<UsersController> logger;
+    private readonly IMapper mapper;
 
-    public UsersController(CineVaultDbContext dbContext, ILogger<UsersController> logger, IMapper mapper)
+    public UsersController(CineVaultDbContext dbContext, ILogger<UsersController> logger,
+        IMapper mapper)
     {
         this.dbContext = dbContext;
-        _logger = logger;
-        _mapper = mapper;
+        this.logger = logger;
+        this.mapper = mapper;
     }
 
     [HttpGet]
     [MapToApiVersion("1")]
     public async Task<ActionResult<List<UserResponse>>> GetUsers()
     {
-        _logger.LogInformation("GetUsers method called");
-        var users = await dbContext.Users
-            .Select(u => new UserResponse
-            {
-                Id = u.Id,
-                Username = u.Username,
-                Email = u.Email
-            })
+        this.logger.LogInformation("GetUsers method called");
+        var users = await this.dbContext.Users
+            .Select(u => new UserResponse { Id = u.Id, Username = u.Username, Email = u.Email })
             .ToListAsync();
-        _logger.LogInformation("GetUsers executed successfully. Returned {UserCount} users", users.Count);
-        return Ok(users);
+        this.logger.LogInformation("GetUsers executed successfully. Returned {UserCount} users",
+            users.Count);
+        return this.Ok(users);
     }
 
     [HttpGet("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult<UserResponse>> GetUserById(int id)
     {
-        _logger.LogInformation("GetUserById method called with id {UserId}", id);
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("GetUserById method called with id {UserId}", id);
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            _logger.LogError("User with id {UserId} not found", id);
-            return NotFound();
+            this.logger.LogError("User with id {UserId} not found", id);
+            return this.NotFound();
         }
+
         var response = new UserResponse
         {
             Id = user.Id,
             Username = user.Username,
             Email = user.Email
         };
-        _logger.LogInformation("GetUserById executed successfully for user id {UserId}", id);
-        return Ok(response);
+        this.logger.LogInformation("GetUserById executed successfully for user id {UserId}", id);
+        return this.Ok(response);
     }
 
     [HttpPost]
     [MapToApiVersion("1")]
     public async Task<ActionResult> CreateUser(UserRequest request)
     {
-        _logger.LogInformation("CreateUser method called with Username {Username} and Email {Email}", request.Username, request.Email);
+        this.logger.LogInformation(
+            "CreateUser method called with Username {Username} and Email {Email}", request.Username,
+            request.Email);
         var user = new User
         {
             Username = request.Username,
             Email = request.Email,
             Password = request.Password
         };
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("User created successfully with Id {UserId}", user.Id);
-        return Ok();
+        this.dbContext.Users.Add(user);
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation("User created successfully with Id {UserId}", user.Id);
+        return this.Ok();
     }
 
     [HttpPut("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult> UpdateUser(int id, UserRequest request)
     {
-        _logger.LogInformation("UpdateUser method called for user id {UserId}", id);
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("UpdateUser method called for user id {UserId}", id);
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            _logger.LogError("User with id {UserId} not found for update", id);
-            return NotFound();
+            this.logger.LogError("User with id {UserId} not found for update", id);
+            return this.NotFound();
         }
+
         user.Username = request.Username;
         user.Email = request.Email;
         user.Password = request.Password;
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("User updated successfully with Id {UserId}", user.Id);
-        return Ok();
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation("User updated successfully with Id {UserId}", user.Id);
+        return this.Ok();
     }
 
     [HttpDelete("{id}")]
     [MapToApiVersion("1")]
     public async Task<ActionResult> DeleteUser(int id)
     {
-        _logger.LogInformation("DeleteUser method called for user id {UserId}", id);
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("DeleteUser method called for user id {UserId}", id);
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            _logger.LogError("User with id {UserId} not found for deletion", id);
-            return NotFound();
+            this.logger.LogError("User with id {UserId} not found for deletion", id);
+            return this.NotFound();
         }
-        dbContext.Users.Remove(user);
-        await dbContext.SaveChangesAsync();
-        _logger.LogInformation("User deleted successfully with Id {UserId}", user.Id);
-        return Ok();
+
+        this.dbContext.Users.Remove(user);
+        await this.dbContext.SaveChangesAsync();
+        this.logger.LogInformation("User deleted successfully with Id {UserId}", user.Id);
+        return this.Ok();
     }
 
     [HttpOptions]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<List<UserResponse>>>> GetUsers(ApiRequest request)
+    public async Task<ActionResult<ApiResponse<ICollection<UserResponse>>>> GetUsers(ApiRequest request)
     {
-        var users = await dbContext.Users.ToListAsync();
-        var userResponses = _mapper.Map<List<UserResponse>>(users);
-        var response = new ApiResponse<List<UserResponse>>
+        this.logger.LogInformation("GetUsers (v2) method called");
+
+        var users = await this.dbContext.Users.ToListAsync();
+        this.logger.LogInformation("Fetched {UserCount} users from database", users.Count);
+
+        var usersResponses = this.mapper.Map<ICollection<UserResponse>>(users);
+        this.logger.LogInformation("Mapping of users to UserResponse completed successfully");
+
+        return this.Ok(new ApiResponse<ICollection<UserResponse>>
         {
             StatusCode = 200,
-            Message = "OK",
-            Data = userResponses
+            Message = "Users are received",
+            Data = usersResponses
+        });
+    }
+
+    [HttpOptions]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<ICollection<UserResponse>>>> SearchUsers(ApiRequest<SearchUsersRequest> request)
+    {
+        this.logger.LogInformation("SearchUsers (v2) method called with criteria: {@Criteria}", request.Data);
+
+        var criteria = request.Data;
+        var query = this.dbContext.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(criteria.SearchTerm))
+        {
+            string searchTermLower = criteria.SearchTerm.ToLower();
+            query = query.Where(u =>
+                u.Username.ToLower().Contains(searchTermLower) ||
+                u.Email.ToLower().Contains(searchTermLower));
+            this.logger.LogInformation("Filtering users by SearchTerm: {SearchTerm}", criteria.SearchTerm);
+        }
+
+        if (criteria.CreatedAfter.HasValue)
+        {
+            query = query.Where(u => u.CreatedAt >= criteria.CreatedAfter.Value);
+            this.logger.LogInformation("Filtering users with CreatedAt >= {CreatedAfter}", criteria.CreatedAfter.Value);
+        }
+
+        if (criteria.CreatedBefore.HasValue)
+        {
+            query = query.Where(u => u.CreatedAt <= criteria.CreatedBefore.Value);
+            this.logger.LogInformation("Filtering users with CreatedAt <= {CreatedBefore}", criteria.CreatedBefore.Value);
+        }
+
+        Expression<Func<User, object>> keySelector = criteria.SortBy?.ToLowerInvariant() switch
+        {
+            "username" => u => u.Username,
+            "email" => u => u.Email,
+            _ => u => u.Id
         };
-        return Ok(response);
+
+        bool descending = criteria.SortOrder?.ToLowerInvariant() == "desc";
+        query = descending ? query.OrderByDescending(keySelector) : query.OrderBy(keySelector);
+        this.logger.LogInformation("Applying sorting: SortBy = {SortBy}, Order = {SortOrder}", criteria.SortBy, descending ? "desc" : "asc");
+
+        int pageNumber = criteria.PageNumber ?? 1;
+        int pageSize = criteria.PageSize ?? 10;
+        query = query.Skip((pageNumber - 1) * pageSize).Take(pageSize);
+        this.logger.LogInformation("Applying pagination: PageNumber = {PageNumber}, PageSize = {PageSize}", pageNumber, pageSize);
+
+        var users = await query.ToListAsync();
+        this.logger.LogInformation("SearchUsers (v2) retrieved {UserCount} users after filtering", users.Count);
+
+        var userResponses = this.mapper.Map<List<UserResponse>>(users);
+        this.logger.LogInformation("Mapping of filtered users to UserResponse completed successfully");
+
+        return this.Ok(new ApiResponse<ICollection<UserResponse>>
+        {
+            StatusCode = 200,
+            Message = "Users are received",
+            Data = userResponses
+        });
     }
 
     [HttpOptions("{id}")]
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<UserResponse>>> GetUserById(int id, ApiRequest request)
     {
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("GetUserById (v2) method called with id {UserId}", id);
+
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            return NotFound(new ApiResponse<UserResponse>
+            this.logger.LogWarning("GetUserById (v2): User with id {UserId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = default!
+                Message = "User is not found"
             });
         }
-        var userResponse = _mapper.Map<UserResponse>(user);
-        var response = new ApiResponse<UserResponse>
+
+        var userResponse = this.mapper.Map<UserResponse>(user);
+        this.logger.LogInformation("GetUserById (v2) executed successfully for user id {UserId}", id);
+
+        return this.Ok(new ApiResponse<UserResponse>
         {
             StatusCode = 200,
-            Message = "OK",
+            Message = "User is received",
             Data = userResponse
-        };
-        return Ok(response);
+        });
     }
 
     [HttpPost]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<UserResponse>>> CreateUser(ApiRequest<UserRequest> request)
+    public async Task<ActionResult<ApiResponse<int>>> CreateUser(ApiRequest<UserRequest> request)
     {
-        var userRequest = request.Data;
-        var user = _mapper.Map<User>(userRequest);
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
-        var userResponse = _mapper.Map<UserResponse>(user);
-        var response = new ApiResponse<UserResponse>
+        this.logger.LogInformation("CreateUser (v2) method called with Username: {Username}, Email: {Email}",
+            request.Data.Username, request.Data.Email);
+
+        var user = this.mapper.Map<User>(request.Data);
+        this.dbContext.Users.Add(user);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("User created successfully (v2) with Id {UserId}", user.Id);
+        return this.Ok(new ApiResponse<int>
         {
-            StatusCode = 201,
-            Message = "Created",
-            Data = userResponse
-        };
-        return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, response);
+            StatusCode = 200,
+            Message = "User is created",
+            Data = user.Id
+        });
     }
 
     [HttpPut("{id}")]
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<UserResponse>>> UpdateUser(int id, ApiRequest<UserRequest> request)
     {
-        var userRequest = request.Data;
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("UpdateUser (v2) method called for user id {UserId}", id);
+
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            return NotFound(new ApiResponse<UserResponse>
+            this.logger.LogWarning("UpdateUser (v2): User with id {UserId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = default!
+                Message = "User is not found"
             });
         }
-        _mapper.Map(userRequest, user);
-        await dbContext.SaveChangesAsync();
-        var userResponse = _mapper.Map<UserResponse>(user);
-        var response = new ApiResponse<UserResponse>
+
+        this.mapper.Map(request.Data, user);
+        await this.dbContext.SaveChangesAsync();
+
+        var userResponse = this.mapper.Map<UserResponse>(user);
+        this.logger.LogInformation("UpdateUser (v2) executed successfully for user id {UserId}", id);
+        return this.Ok(new ApiResponse<UserResponse>
         {
             StatusCode = 200,
-            Message = "OK",
+            Message = "User is updated",
             Data = userResponse
-        };
-        return Ok(response);
+        });
     }
 
     [HttpDelete("{id}")]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<string>>> DeleteUser(int id, ApiRequest request)
+    public async Task<ActionResult<ApiResponse>> DeleteUser(int id, ApiRequest request)
     {
-        var user = await dbContext.Users.FindAsync(id);
+        this.logger.LogInformation("DeleteUser (v2) method called for user id {UserId}", id);
+
+        var user = await this.dbContext.Users.FindAsync(id);
         if (user is null)
         {
-            return NotFound(new ApiResponse<string>
+            this.logger.LogWarning("DeleteUser (v2): User with id {UserId} not found", id);
+            return this.NotFound(new ApiResponse
             {
                 StatusCode = 404,
-                Message = "Not Found",
-                Data = "User not found"
+                Message = "User is not found"
             });
         }
-        dbContext.Users.Remove(user);
-        await dbContext.SaveChangesAsync();
-        var response = new ApiResponse<string>
+
+        this.dbContext.Users.Remove(user);
+        await this.dbContext.SaveChangesAsync();
+
+        this.logger.LogInformation("DeleteUser (v2) executed successfully for user id {UserId}", id);
+        return this.Ok(new ApiResponse
         {
             StatusCode = 200,
-            Message = "OK",
-            Data = "Deleted"
-        };
-        return Ok(response);
+            Message = "User is deleted"
+        });
     }
 }
