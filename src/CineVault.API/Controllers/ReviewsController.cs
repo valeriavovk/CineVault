@@ -313,7 +313,7 @@ public sealed class ReviewsController : ControllerBase
             });
         }
 
-        this.dbContext.Reviews.Remove(review);
+        review.IsDeleted = true;
         await this.dbContext.SaveChangesAsync();
 
         this.logger.LogInformation("DeleteReview (v2) executed successfully for review id {ReviewId}", id);
@@ -375,7 +375,7 @@ public sealed class ReviewsController : ControllerBase
             });
         }
 
-        this.dbContext.Likes.Remove(like);
+        like.IsDeleted = true;
         await this.dbContext.SaveChangesAsync();
 
         this.logger.LogInformation("DeleteLike (v2) executed successfully for LikeId {LikeId}", id);

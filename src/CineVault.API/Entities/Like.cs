@@ -7,4 +7,5 @@ public sealed class Like
     public required int UserId { get; set; }
     public Review? Review { get; set; }
     public User? User { get; set; }
+    public bool IsDeleted { get; set; }
 }
