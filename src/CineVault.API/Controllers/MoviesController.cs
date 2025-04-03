@@ -144,6 +144,7 @@ public sealed class MoviesController : ControllerBase
         return this.Ok();
     }
 
+    // завдання 13.2
     [HttpOptions]
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> GetMovies(ApiRequest request)
@@ -151,26 +152,38 @@ public sealed class MoviesController : ControllerBase
         this.logger.LogInformation("GetMovies (v2) method called");
 
         var movies = await this.dbContext.Movies
-            .Include(m => m.Reviews)
+            .Select(m => new 
+            {
+                Movie = m,
+                AverageRating = m.Reviews.Average(r => (double?)r.Rating) ?? 0,
+                ReviewCount = m.Reviews.Count
+            })
+            .AsNoTracking()
             .ToListAsync();
-        this.logger.LogInformation("Retrieved {MovieCount} movies from database", movies.Count);
 
-        var movieResponses = this.mapper.Map<ICollection<MovieResponse>>(movies);
-
-        this.logger.LogInformation("GetMovies (v2) executed successfully");
-        return this.Ok(new ApiResponse<ICollection<MovieResponse>>
+        var movieResponses = movies.Select(x => new MovieResponse 
         {
-            StatusCode = 200,
-            Message = "Movies are received",
-            Data = movieResponses
-        });
+            Id = x.Movie.Id,
+            Title = x.Movie.Title,
+            Description = x.Movie.Description,
+            ReleaseDate = x.Movie.ReleaseDate,
+            Genre = x.Movie.Genre,
+            Director = x.Movie.Director,
+            AverageRating = x.AverageRating,
+            ReviewCount = x.ReviewCount
+        }).ToList();
+
+        return this.Ok(new ApiResponse<ICollection<MovieResponse>> 
+            { StatusCode = 200, Message = "Movies are received", Data = movieResponses });
     }
 
     [HttpOptions]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> SearchMovies(ApiRequest<SearchMoviesRequest> request)
+    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> SearchMovies(
+        ApiRequest<SearchMoviesRequest> request)
     {
-        this.logger.LogInformation("SearchMovies (v2) method called with criteria: {@Criteria}", request.Data);
+        this.logger.LogInformation("SearchMovies (v2) method called with criteria: {@Criteria}",
+            request.Data);
 
         var criteria = request.Data;
         var query = this.dbContext.Movies
@@ -180,45 +193,161 @@ public sealed class MoviesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(criteria.Title))
         {
             query = query.Where(m => m.Title.Contains(criteria.Title));
-            this.logger.LogInformation("Filtering movies by Title containing: {Title}", criteria.Title);
+            this.logger.LogInformation("Filtering movies by Title containing: {Title}",
+                criteria.Title);
         }
+
         if (!string.IsNullOrWhiteSpace(criteria.Genre))
         {
-            query = query.Where(m => m.Genre != null && m.Genre.Equals(criteria.Genre, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(m =>
+                m.Genre != null &&
+                m.Genre.Equals(criteria.Genre, StringComparison.OrdinalIgnoreCase));
             this.logger.LogInformation("Filtering movies by Genre: {Genre}", criteria.Genre);
         }
+
         if (!string.IsNullOrWhiteSpace(criteria.Director))
         {
             query = query.Where(m => m.Director != null && m.Director.Contains(criteria.Director));
-            this.logger.LogInformation("Filtering movies by Director containing: {Director}", criteria.Director);
+            this.logger.LogInformation("Filtering movies by Director containing: {Director}",
+                criteria.Director);
         }
+
         if (criteria.ReleaseDate.HasValue)
         {
-            query = query.Where(m => m.ReleaseDate.HasValue && m.ReleaseDate.Value == criteria.ReleaseDate.Value);
-            this.logger.LogInformation("Filtering movies by ReleaseDate: {ReleaseDate}", criteria.ReleaseDate.Value);
+            query = query.Where(m =>
+                m.ReleaseDate.HasValue && m.ReleaseDate.Value == criteria.ReleaseDate.Value);
+            this.logger.LogInformation("Filtering movies by ReleaseDate: {ReleaseDate}",
+                criteria.ReleaseDate.Value);
         }
+
         if (criteria.AvgRating.HasValue)
         {
             double minRating = criteria.AvgRating.Value;
-            query = query.Where(m => m.Reviews.Any() && m.Reviews.Average(r => r.Rating) >= minRating);
-            this.logger.LogInformation("Filtering movies with average rating >= {MinRating}", minRating);
+            query = query.Where(m =>
+                m.Reviews.Any() && m.Reviews.Average(r => r.Rating) >= minRating);
+            this.logger.LogInformation("Filtering movies with average rating >= {MinRating}",
+                minRating);
         }
 
         var movies = await query.ToListAsync();
-        this.logger.LogInformation("SearchMovies (v2) executed successfully. Found {MovieCount} movies", movies.Count);
+        this.logger.LogInformation(
+            "SearchMovies (v2) executed successfully. Found {MovieCount} movies", movies.Count);
 
         var movieResponses = this.mapper.Map<ICollection<MovieResponse>>(movies);
         return this.Ok(new ApiResponse<ICollection<MovieResponse>>
         {
-            StatusCode = 200,
-            Message = "Movies are received",
-            Data = movieResponses
+            StatusCode = 200, Message = "Movies are received", Data = movieResponses
+        });
+    }
+
+    // завдання 13.4
+    [HttpOptions]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<List<MovieResponse>>>> SearchMoviesAlt(
+        ApiRequest<SearchMoviesAltRequest> request)
+    {
+        this.logger.LogInformation("SearchMoviesAlt (v2) called with filters: {@Filters}", request.Data);
+
+        var query = this.dbContext.Movies
+            .Include(m => m.Reviews)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Data.Text))
+        {
+            string searchTerm = request.Data.Text.ToLower();
+            query = query.Where(m =>
+                m.Title.ToLower().Contains(searchTerm) ||
+                (m.Description != null && m.Description.ToLower().Contains(searchTerm)) ||
+                (m.Director != null && m.Director.ToLower().Contains(searchTerm)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Data.Genre))
+        {
+            query = query.Where(m => m.Genre == request.Data.Genre);
+        }
+
+        if (request.Data.MinRating.HasValue)
+        {
+            query = query.Where(m =>
+                m.Reviews.Any() &&
+                m.Reviews.Average(r => r.Rating) >= request.Data.MinRating.Value);
+        }
+
+        if (request.Data.ReleaseDate.HasValue)
+        {
+            query = query.Where(m => m.ReleaseDate == request.Data.ReleaseDate);
+        }
+
+        var movies = await query.ToListAsync();
+        var response = this.mapper.Map<List<MovieResponse>>(movies);
+
+        this.logger.LogInformation("Found {Count} movies matching filters", response.Count);
+        return this.Ok(new ApiResponse<List<MovieResponse>>
+        {
+            StatusCode = 200, Message = "Movies are received", Data = response
         });
     }
 
     [HttpOptions("{id}")]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<MovieResponse>>> GetMovieById(int id, ApiRequest request)
+    public async Task<ActionResult<ApiResponse<MovieDetailsResponse>>> GetMovieDetails(int id, ApiRequest request)
+    {
+        this.logger.LogInformation("GetMovieDetails (v2) called for MovieId: {MovieId}", id);
+
+        var result = await this.dbContext.Movies
+            .Where(m => m.Id == id)
+            .Select(m => new 
+            {
+                Movie = m,
+                AverageRating = m.Reviews.Average(r => (double?)r.Rating) ?? 0,
+                ReviewCount = m.Reviews.Count,
+                LastReviews = m.Reviews
+                    .OrderByDescending(r => r.CreatedAt)
+                    .Take(5)
+                    .Select(r => new MovieDetailsResponse.ReviewUserResponse 
+                    {
+                        ReviewId = r.Id,
+                        Rating = r.Rating,
+                        Comment = r.Comment,
+                        CreatedAt = r.CreatedAt,
+                        User = new UserResponse 
+                        { 
+                            Id = r.User!.Id, 
+                            Username = r.User.Username, 
+                            Email = r.User.Email 
+                        }
+                    })
+                    .ToList()
+            })
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+
+        if (result == null) 
+        {
+            return this.NotFound(new ApiResponse { StatusCode = 404, Message = "Movie is not found" });
+        }
+
+        var response = new MovieDetailsResponse
+        {
+            Id = result.Movie.Id,
+            Title = result.Movie.Title,
+            Description = result.Movie.Description,
+            ReleaseDate = result.Movie.ReleaseDate,
+            Genre = result.Movie.Genre,
+            Director = result.Movie.Director,
+            AverageRating = result.AverageRating,
+            ReviewCount = result.ReviewCount,
+            LastReviews = result.LastReviews
+        };
+
+        return this.Ok(new ApiResponse<MovieDetailsResponse> 
+            { StatusCode = 200, Message = "Movie details are received", Data = response });
+    }
+
+    [HttpOptions("{id}")]
+    [MapToApiVersion("2")]
+    public async Task<ActionResult<ApiResponse<MovieResponse>>> GetMovieById(int id,
+        ApiRequest request)
     {
         this.logger.LogInformation("GetMovieById (v2) method called with Id {MovieId}", id);
 
@@ -231,18 +360,16 @@ public sealed class MoviesController : ControllerBase
             this.logger.LogWarning("GetMovieById (v2): Movie with Id {MovieId} not found", id);
             return this.NotFound(new ApiResponse
             {
-                StatusCode = 404,
-                Message = "Movie is not found"
+                StatusCode = 404, Message = "Movie is not found"
             });
         }
 
         var movieResponse = this.mapper.Map<MovieResponse>(movie);
-        this.logger.LogInformation("GetMovieById (v2) executed successfully for MovieId {MovieId}", id);
+        this.logger.LogInformation("GetMovieById (v2) executed successfully for MovieId {MovieId}",
+            id);
         return this.Ok(new ApiResponse<MovieResponse>
         {
-            StatusCode = 200,
-            Message = "OK",
-            Data = movieResponse
+            StatusCode = 200, Message = "OK", Data = movieResponse
         });
     }
 
@@ -250,32 +377,36 @@ public sealed class MoviesController : ControllerBase
     [MapToApiVersion("2")]
     public async Task<ActionResult<ApiResponse<int>>> CreateMovie(ApiRequest<MovieRequest> request)
     {
-        this.logger.LogInformation("CreateMovie (v2) method called with Title {MovieTitle}", request.Data.Title);
+        this.logger.LogInformation("CreateMovie (v2) method called with Title {MovieTitle}",
+            request.Data.Title);
 
         var movie = this.mapper.Map<Movie>(request.Data);
         await this.dbContext.Movies.AddAsync(movie);
         await this.dbContext.SaveChangesAsync();
 
-        this.logger.LogInformation("Movie created successfully in CreateMovie (v2) with Id {MovieId}", movie.Id);
+        this.logger.LogInformation(
+            "Movie created successfully in CreateMovie (v2) with Id {MovieId}", movie.Id);
         return this.Ok(new ApiResponse<int>
         {
-            StatusCode = 200,
-            Message = "Movie is created",
-            Data = movie.Id
+            StatusCode = 200, Message = "Movie is created", Data = movie.Id
         });
     }
 
     [HttpPost]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> CreateMovies(ApiRequest<ICollection<MovieRequest>> request)
+    public async Task<ActionResult<ApiResponse<ICollection<MovieResponse>>>> CreateMovies(
+        ApiRequest<ICollection<MovieRequest>> request)
     {
-        this.logger.LogInformation("CreateMovies (v2) method called with {MovieCount} movies", request.Data.Count);
+        this.logger.LogInformation("CreateMovies (v2) method called with {MovieCount} movies",
+            request.Data.Count);
 
         var movies = this.mapper.Map<ICollection<Movie>>(request.Data);
         await this.dbContext.Movies.AddRangeAsync(movies);
         await this.dbContext.SaveChangesAsync();
 
-        this.logger.LogInformation("CreateMovies (v2) executed successfully. Created movies with IDs: {MovieIds}", string.Join(", ", movies.Select(m => m.Id)));
+        this.logger.LogInformation(
+            "CreateMovies (v2) executed successfully. Created movies with IDs: {MovieIds}",
+            string.Join(", ", movies.Select(m => m.Id)));
         return this.Ok(new ApiResponse<ICollection<int>>
         {
             StatusCode = 200,
@@ -286,7 +417,8 @@ public sealed class MoviesController : ControllerBase
 
     [HttpPut("{id}")]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<MovieResponse>>> UpdateMovie(int id, ApiRequest<MovieRequest> request)
+    public async Task<ActionResult<ApiResponse<MovieResponse>>> UpdateMovie(int id,
+        ApiRequest<MovieRequest> request)
     {
         this.logger.LogInformation("UpdateMovie (v2) method called for MovieId {MovieId}", id);
 
@@ -296,21 +428,19 @@ public sealed class MoviesController : ControllerBase
             this.logger.LogWarning("UpdateMovie (v2): Movie with Id {MovieId} not found", id);
             return this.NotFound(new ApiResponse
             {
-                StatusCode = 404,
-                Message = "Movie is not found"
+                StatusCode = 404, Message = "Movie is not found"
             });
         }
 
         this.mapper.Map(request.Data, movie);
         await this.dbContext.SaveChangesAsync();
 
-        this.logger.LogInformation("UpdateMovie (v2) executed successfully for MovieId {MovieId}", id);
+        this.logger.LogInformation("UpdateMovie (v2) executed successfully for MovieId {MovieId}",
+            id);
         var movieResponse = this.mapper.Map<MovieResponse>(movie);
         return this.Ok(new ApiResponse<MovieResponse>
         {
-            StatusCode = 200,
-            Message = "Movie is updated",
-            Data = movieResponse
+            StatusCode = 200, Message = "Movie is updated", Data = movieResponse
         });
     }
 
@@ -326,28 +456,26 @@ public sealed class MoviesController : ControllerBase
             this.logger.LogWarning("DeleteMovie (v2): Movie with Id {MovieId} not found", id);
             return this.NotFound(new ApiResponse
             {
-                StatusCode = 404,
-                Message = "Movie is not found"
+                StatusCode = 404, Message = "Movie is not found"
             });
         }
 
-        this.dbContext.Movies.Remove(movie);
+        movie.IsDeleted = true;
         await this.dbContext.SaveChangesAsync();
 
-        this.logger.LogInformation("DeleteMovie (v2) executed successfully for MovieId {MovieId}", id);
-        return this.Ok(new ApiResponse
-        {
-            StatusCode = 200,
-            Message = "Movie is deleted"
-        });
+        this.logger.LogInformation("DeleteMovie (v2) executed successfully for MovieId {MovieId}",
+            id);
+        return this.Ok(new ApiResponse { StatusCode = 200, Message = "Movie is deleted" });
     }
 
     [HttpDelete]
     [MapToApiVersion("2")]
-    public async Task<ActionResult<ApiResponse<string>>> DeleteMovies(ApiRequest<ICollection<int>> request)
+    public async Task<ActionResult<ApiResponse<string>>> DeleteMovies(
+        ApiRequest<ICollection<int>> request)
     {
         var movieIdsToDelete = request.Data.Distinct().ToList();
-        this.logger.LogInformation("DeleteMovies (v2) method called with MovieIds: {MovieIds}", string.Join(", ", movieIdsToDelete));
+        this.logger.LogInformation("DeleteMovies (v2) method called with MovieIds: {MovieIds}",
+            string.Join(", ", movieIdsToDelete));
 
         var results = new List<string>();
         var moviesFromDb = await this.dbContext.Movies
@@ -362,7 +490,8 @@ public sealed class MoviesController : ControllerBase
             foundIds.Add(movie.Id);
             if (movie.Reviews.Count != 0)
             {
-                string skipMessage = $"Movie with ID {movie.Id} ('{movie.Title}') skipped: Has associated reviews";
+                string skipMessage =
+                    $"Movie with ID {movie.Id} ('{movie.Title}') skipped: Has associated reviews";
                 this.logger.LogWarning("DeleteMovies (v2): {SkipMessage}", skipMessage);
                 results.Add(skipMessage);
             }
@@ -378,6 +507,7 @@ public sealed class MoviesController : ControllerBase
             {
                 continue;
             }
+
             string notFoundMessage = $"Movie with ID {id} not found";
             this.logger.LogWarning("DeleteMovies (v2): {NotFoundMessage}", notFoundMessage);
             results.Add(notFoundMessage);
@@ -385,17 +515,18 @@ public sealed class MoviesController : ControllerBase
 
         if (movsToRemove.Count != 0)
         {
-            this.dbContext.Movies.RemoveRange(movsToRemove);
             await this.dbContext.SaveChangesAsync();
             foreach (var movie in movsToRemove)
             {
+                movie.IsDeleted = true;
                 string deletedMessage = $"Movie with ID {movie.Id} deleted successfully.";
                 this.logger.LogInformation("DeleteMovies (v2): {DeletedMessage}", deletedMessage);
                 results.Add(deletedMessage);
             }
         }
 
-        this.logger.LogInformation("DeleteMovies (v2) executed with {DeletedCount} movies deleted", movsToRemove.Count);
+        this.logger.LogInformation("DeleteMovies (v2) executed with {DeletedCount} movies deleted",
+            movsToRemove.Count);
         return this.Ok(new ApiResponse<ICollection<string>>
         {
             StatusCode = 200,

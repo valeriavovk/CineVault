@@ -9,4 +9,5 @@ public sealed class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public ICollection<Review> Reviews { get; set; } = [];
     public ICollection<Like> Likes { get; set; } = [];
+    public bool IsDeleted { get; set; }
 }

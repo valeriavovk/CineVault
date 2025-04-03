@@ -1,5 +1,6 @@
 using System.Reflection;
 using Asp.Versioning;
+using CineVault.API.Entities;
 using CineVault.API.Extensions;
 using Mapster;
 using Microsoft.AspNetCore.Mvc;
@@ -83,5 +84,9 @@ app.UseMiddleware<TimerMiddleware>();
 app.MapControllers();
 
 Console.WriteLine($"Launch Environment: {app.Environment.EnvironmentName}");
+
+app.Services.CreateScope().ServiceProvider
+    .GetRequiredService<CineVaultDbContext>().Database
+    .EnsureCreated();
 
 await app.RunAsync();
